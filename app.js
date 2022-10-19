@@ -54,7 +54,28 @@ const sessionConfig = {
 app.use(session(sessionConfig))
 app.use(flash())
 
+
+const passport = require('passport')
+const passportLocal = require('passport-local')
+const User = require('./models/user')
+app.use(passport.initialize())
+app.use(passport.session())  // passport.session() must be after app.use(session())
+passport.use(new passportLocal(User.authenticate()))
+passport.serializeUser(User.serializeUser())
+passport.deserializeUser(User.deserializeUser())
+
+const isLoggedIn = (req,res,next)=>{
+    if (!req.isAuthenticated()){
+        req.session.returnTo = req.originalUrl
+        console.log(req.session)
+        req.flash('error', 'You must be signed in')
+        res.redirect('/login')
+    } else
+        next()
+}
+
 app.use((req,res,next)=>{
+    res.locals.currentUser = req.user
     res.locals.success = req.flash('success')
     res.locals.error = req.flash('error')
     next()
@@ -66,17 +87,57 @@ app.get('/', (req, res)=>{
     res.render('home.ejs')
 })
 
+app.get('/register', (req, res)=>{
+    res.render('users/register.ejs')
+})
+
+app.post('/register', catchAsync(async(req, res, next)=>{
+    try{
+        const {email, username, password} = req.body 
+        const user = new User({email, username})
+        const regUser = await User.register(user, password)
+        req.login(regUser, (e)=>{
+            if (e) return next(e)
+            req.flash('success', 'Welcome to YelpCamp')
+            res.redirect('/campgrounds')
+        })
+    } catch (e){
+        req.flash('error', e.message)
+        res.redirect('/register')
+    }
+}))
+
+app.get('/login', (req, res)=>{
+    res.render('users/login.ejs')
+})
+
+app.post('/login', passport.authenticate('local', {failureFlash:true, failureRedirect:'/login', keepSessionInfo:true}), (req, res)=>{
+    req.flash('success', 'Welcome back!')
+    const preUrl = req.session.returnTo || '/campgrounds'
+    delete req.session.returnTo
+    res.redirect(preUrl)
+})
+
+app.get('/logout', (req,res,next)=>{
+    req.logout(function(e){
+        if (e) return next(e)
+        req.flash('success', 'Successfully log out!')
+        res.redirect('/campgrounds')
+    })
+})
+
+
 app.get('/campgrounds', catchAsync(async (req, res, next)=>{
     const campgrounds = await Campground.find({})
     res.render('campgrounds/index.ejs', {campgrounds})
 }))
 
 // add new campground, form in new.ejs, submit post request to /campgrounds
-app.get('/campgrounds/new', (req,res)=>{
+app.get('/campgrounds/new', isLoggedIn, (req,res)=>{
     res.render('campgrounds/new.ejs')
 })
 
-app.post('/campgrounds', validateCampground, catchAsync(async (req, res, next)=>{
+app.post('/campgrounds', isLoggedIn, validateCampground, catchAsync(async (req, res, next)=>{
     const campground = new Campground(req.body.campground)
     await campground.save()
     req.flash('success', 'Successfully made a new campground!')
