@@ -28,25 +28,6 @@ app.use(express.static(path.join(__dirname, 'public')))   // setup the public fo
 const Campground = require('./models/campground')
 const Review = require('./models/review')
 
-const {campgroundJOISchema, reviewJOISchema} = require('./utils/JOISchemas')
-const validateCampground = (req,res,next)=>{
-    const {error} = campgroundJOISchema.validate(req.body)
-    if (error){
-        const msg = error.details.map(el => el.message).join(',')
-        throw new ExpressError(msg, 400)
-    }else
-        next()
-}
-
-const validateReview = (req, res, next)=>{
-    const {error} = reviewJOISchema.validate(req.body)
-    if (error){
-        const msg = error.details.map(el => el.message).join(',')
-        throw new ExpressError(msg, 400)
-    }else
-        next()    
-}
-
 const sessionConfig = {
     secret:'needbettersecret', resave: false, saveUninitialized: true,
     cookie:{httpOnly: true, expires: Date.now() + 1000 * 60 * 60 * 24 * 7, maxAge: 1000 * 60 * 60 * 24 * 7}
@@ -64,15 +45,8 @@ passport.use(new passportLocal(User.authenticate()))
 passport.serializeUser(User.serializeUser())
 passport.deserializeUser(User.deserializeUser())
 
-const isLoggedIn = (req,res,next)=>{
-    if (!req.isAuthenticated()){
-        req.session.returnTo = req.originalUrl
-        console.log(req.session)
-        req.flash('error', 'You must be signed in')
-        res.redirect('/login')
-    } else
-        next()
-}
+// middleware 
+const {isLoggedIn, validateCampground, validateReview, isCampAuthor, isReviewAuthor} = require('./middleware.js')
 
 app.use((req,res,next)=>{
     res.locals.currentUser = req.user
@@ -139,13 +113,16 @@ app.get('/campgrounds/new', isLoggedIn, (req,res)=>{
 
 app.post('/campgrounds', isLoggedIn, validateCampground, catchAsync(async (req, res, next)=>{
     const campground = new Campground(req.body.campground)
+    campground.author = req.user._id
     await campground.save()
     req.flash('success', 'Successfully made a new campground!')
     res.redirect(`/campgrounds/${campground._id}`)
 }))
 
 app.get('/campgrounds/:id', catchAsync(async (req, res, next)=>{   
-    const campground = await Campground.findById(req.params.id).populate('reviews')
+    const campground = await Campground.findById(req.params.id).populate('author').populate({
+        path: 'reviews', populate:{ path: 'author'}
+    })
     if (!campground){
         req.flash('error', 'Cannot find that campground!')
         res.redirect('/campgrounds')
@@ -153,26 +130,27 @@ app.get('/campgrounds/:id', catchAsync(async (req, res, next)=>{
         res.render('campgrounds/show.ejs', {campground})
 }))
 
-app.get('/campgrounds/:id/edit', catchAsync(async (req, res, next)=>{   
+app.get('/campgrounds/:id/edit', isLoggedIn, isCampAuthor, catchAsync(async (req, res, next)=>{   
     const campground = await Campground.findById(req.params.id)
     res.render('campgrounds/edit.ejs', {campground})
 }))
 
-app.put('/campgrounds/:id', validateCampground, catchAsync(async (req, res, next)=>{   
+app.put('/campgrounds/:id', isLoggedIn, isCampAuthor, validateCampground, catchAsync(async (req, res, next)=>{   
     await Campground.findByIdAndUpdate(req.params.id, {...req.body.campground})
     req.flash('success', 'Successfully updated campground!')
     res.redirect(`/campgrounds/${req.params.id}`)
 }))
 
-app.delete('/campgrounds/:id', catchAsync(async (req, res, next)=>{   
+app.delete('/campgrounds/:id', isLoggedIn, isCampAuthor, catchAsync(async (req, res, next)=>{   
     await Campground.findByIdAndDelete(req.params.id)
     req.flash('success', 'Successfully deleted campground!')
     res.redirect(`/campgrounds`)
 }))
 
-app.post('/campgrounds/:id/reviews', validateReview, catchAsync(async (req, res, next)=>{   
+app.post('/campgrounds/:id/reviews', isLoggedIn, validateReview, catchAsync(async (req, res, next)=>{   
     const campground = await Campground.findById(req.params.id)
     const review = new Review(req.body.review)
+    review.author = req.user._id
     campground.reviews.push(review)
     await review.save()
     await campground.save()
@@ -180,7 +158,7 @@ app.post('/campgrounds/:id/reviews', validateReview, catchAsync(async (req, res,
     res.redirect(`/campgrounds/${req.params.id}`)
 }))
 
-app.delete('/campgrounds/:id/reviews/:reviewID', catchAsync(async (req, res, next)=>{   
+app.delete('/campgrounds/:id/reviews/:reviewID', isLoggedIn, isReviewAuthor, catchAsync(async (req, res, next)=>{   
     await Campground.findByIdAndUpdate(req.params.id, {$pull: {reviews: req.params.reviewID}})
     await Review.findByIdAndDelete(req.params.reviewID)
     req.flash('success', 'Successfully deleted review!')
