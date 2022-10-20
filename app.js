@@ -25,8 +25,6 @@ app.use(express.urlencoded({extended:true}))
 app.use(methodOverride('_method'))
 app.use(express.static(path.join(__dirname, 'public')))   // setup the public folder to serve static assets
 
-const Campground = require('./models/campground')
-const Review = require('./models/review')
 
 const sessionConfig = {
     secret:'needbettersecret', resave: false, saveUninitialized: true,
@@ -44,6 +42,9 @@ app.use(passport.session())  // passport.session() must be after app.use(session
 passport.use(new passportLocal(User.authenticate()))
 passport.serializeUser(User.serializeUser())
 passport.deserializeUser(User.deserializeUser())
+
+// controller
+const controller = require('./controller.js')
 
 // middleware 
 const {isLoggedIn, validateCampground, validateReview, isCampAuthor, isReviewAuthor} = require('./middleware.js')
@@ -65,105 +66,36 @@ app.get('/register', (req, res)=>{
     res.render('users/register.ejs')
 })
 
-app.post('/register', catchAsync(async(req, res, next)=>{
-    try{
-        const {email, username, password} = req.body 
-        const user = new User({email, username})
-        const regUser = await User.register(user, password)
-        req.login(regUser, (e)=>{
-            if (e) return next(e)
-            req.flash('success', 'Welcome to YelpCamp')
-            res.redirect('/campgrounds')
-        })
-    } catch (e){
-        req.flash('error', e.message)
-        res.redirect('/register')
-    }
-}))
+app.post('/register', catchAsync(controller.register))
 
 app.get('/login', (req, res)=>{
     res.render('users/login.ejs')
 })
 
-app.post('/login', passport.authenticate('local', {failureFlash:true, failureRedirect:'/login', keepSessionInfo:true}), (req, res)=>{
-    req.flash('success', 'Welcome back!')
-    const preUrl = req.session.returnTo || '/campgrounds'
-    delete req.session.returnTo
-    res.redirect(preUrl)
-})
+app.post('/login', passport.authenticate('local', {failureFlash:true, failureRedirect:'/login', keepSessionInfo:true}), 
+    controller.login)
 
-app.get('/logout', (req,res,next)=>{
-    req.logout(function(e){
-        if (e) return next(e)
-        req.flash('success', 'Successfully log out!')
-        res.redirect('/campgrounds')
-    })
-})
+app.get('/logout', controller.logout)
 
+app.get('/campgrounds', catchAsync(controller.index))
 
-app.get('/campgrounds', catchAsync(async (req, res, next)=>{
-    const campgrounds = await Campground.find({})
-    res.render('campgrounds/index.ejs', {campgrounds})
-}))
-
-// add new campground, form in new.ejs, submit post request to /campgrounds
 app.get('/campgrounds/new', isLoggedIn, (req,res)=>{
     res.render('campgrounds/new.ejs')
 })
 
-app.post('/campgrounds', isLoggedIn, validateCampground, catchAsync(async (req, res, next)=>{
-    const campground = new Campground(req.body.campground)
-    campground.author = req.user._id
-    await campground.save()
-    req.flash('success', 'Successfully made a new campground!')
-    res.redirect(`/campgrounds/${campground._id}`)
-}))
+app.post('/campgrounds', isLoggedIn, validateCampground, catchAsync(controller.createCampground))
 
-app.get('/campgrounds/:id', catchAsync(async (req, res, next)=>{   
-    const campground = await Campground.findById(req.params.id).populate('author').populate({
-        path: 'reviews', populate:{ path: 'author'}
-    })
-    if (!campground){
-        req.flash('error', 'Cannot find that campground!')
-        res.redirect('/campgrounds')
-    }else
-        res.render('campgrounds/show.ejs', {campground})
-}))
+app.get('/campgrounds/:id', catchAsync(controller.showCampground))
 
-app.get('/campgrounds/:id/edit', isLoggedIn, isCampAuthor, catchAsync(async (req, res, next)=>{   
-    const campground = await Campground.findById(req.params.id)
-    res.render('campgrounds/edit.ejs', {campground})
-}))
+app.get('/campgrounds/:id/edit', isLoggedIn, isCampAuthor, catchAsync(controller.renderEditForm))
 
-app.put('/campgrounds/:id', isLoggedIn, isCampAuthor, validateCampground, catchAsync(async (req, res, next)=>{   
-    await Campground.findByIdAndUpdate(req.params.id, {...req.body.campground})
-    req.flash('success', 'Successfully updated campground!')
-    res.redirect(`/campgrounds/${req.params.id}`)
-}))
+app.put('/campgrounds/:id', isLoggedIn, isCampAuthor, validateCampground, catchAsync(controller.updateCampground))
 
-app.delete('/campgrounds/:id', isLoggedIn, isCampAuthor, catchAsync(async (req, res, next)=>{   
-    await Campground.findByIdAndDelete(req.params.id)
-    req.flash('success', 'Successfully deleted campground!')
-    res.redirect(`/campgrounds`)
-}))
+app.delete('/campgrounds/:id', isLoggedIn, isCampAuthor, catchAsync(controller.deleteCampground))
 
-app.post('/campgrounds/:id/reviews', isLoggedIn, validateReview, catchAsync(async (req, res, next)=>{   
-    const campground = await Campground.findById(req.params.id)
-    const review = new Review(req.body.review)
-    review.author = req.user._id
-    campground.reviews.push(review)
-    await review.save()
-    await campground.save()
-    req.flash('success', 'Created new review!')
-    res.redirect(`/campgrounds/${req.params.id}`)
-}))
+app.post('/campgrounds/:id/reviews', isLoggedIn, validateReview, catchAsync(controller.createReview))
 
-app.delete('/campgrounds/:id/reviews/:reviewID', isLoggedIn, isReviewAuthor, catchAsync(async (req, res, next)=>{   
-    await Campground.findByIdAndUpdate(req.params.id, {$pull: {reviews: req.params.reviewID}})
-    await Review.findByIdAndDelete(req.params.reviewID)
-    req.flash('success', 'Successfully deleted review!')
-    res.redirect(`/campgrounds/${req.params.id}`)
-}))
+app.delete('/campgrounds/:id/reviews/:reviewID', isLoggedIn, isReviewAuthor, catchAsync(controller.deleteReview))
 
 
 
