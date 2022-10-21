@@ -23,9 +23,19 @@ const seedDB = async () => {
             author: '6350a60b9e7ba02d6f85f832', 
             location: `${cities[random1000].city}, ${cities[random1000].state}`,
             title: `${sample(descriptors)} ${sample(places)}`,
-            image: 'https://source.unsplash.com/collection/483251',
+            //image: 'https://source.unsplash.com/collection/483251',
             description: 'A campsite, also known as a campground or camping pitch, is a place used for overnight stay in an outdoor area. In British English, a campsite is an area, usually divided into a number of pitches, where people can camp overnight using tents, campervans or caravans; this British English use of the word is synonymous with the US English expression campground. In American English, the term campsite generally means an area where an individual, family, group, or military unit can pitch a tent or park a camper; a campground may contain many campsites.',
-            price: price
+            price: price,
+            images: [
+                {
+                  url: 'https://res.cloudinary.com/du8mbncbq/image/upload/v1666298721/YelpCamp/cue3wnlzuoiqdevij23o.jpg',
+                  filename: 'YelpCamp/cue3wnlzuoiqdevij23o',
+                },
+                {
+                  url: 'https://res.cloudinary.com/du8mbncbq/image/upload/v1666298721/YelpCamp/qkei8rcxpj1hwnp2xhxz.jpg',
+                  filename: 'YelpCamp/qkei8rcxpj1hwnp2xhxz',
+                }
+              ]
         })
         await camp.save();
     }

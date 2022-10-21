@@ -1,3 +1,8 @@
+if (process.env.NODE_ENV !== 'production'){
+    require('dotenv').config()
+}
+
+
 const express = require('express')
 const app = express()
 const path = require('path')
@@ -6,6 +11,9 @@ const ejsMate = require('ejs-mate')
 app.engine('ejs', ejsMate)
 const session = require('express-session')
 const flash = require('connect-flash')
+const multer = require('multer')
+const {storage} = require('./cloudinary.js')
+const upload = multer({ storage })
 
 const ExpressError = require('./utils/ExpressError')
 const catchAsync = require('./utils/catchAsync')
@@ -53,6 +61,9 @@ app.use((req,res,next)=>{
     res.locals.currentUser = req.user
     res.locals.success = req.flash('success')
     res.locals.error = req.flash('error')
+    if(req.originalUrl!=='/login'){
+        req.session.returnTo = req.originalUrl
+    }
     next()
 })
 
@@ -83,13 +94,13 @@ app.get('/campgrounds/new', isLoggedIn, (req,res)=>{
     res.render('campgrounds/new.ejs')
 })
 
-app.post('/campgrounds', isLoggedIn, validateCampground, catchAsync(controller.createCampground))
+app.post('/campgrounds', isLoggedIn, upload.array('image'), validateCampground, catchAsync(controller.createCampground))
 
 app.get('/campgrounds/:id', catchAsync(controller.showCampground))
 
 app.get('/campgrounds/:id/edit', isLoggedIn, isCampAuthor, catchAsync(controller.renderEditForm))
 
-app.put('/campgrounds/:id', isLoggedIn, isCampAuthor, validateCampground, catchAsync(controller.updateCampground))
+app.put('/campgrounds/:id', isLoggedIn, isCampAuthor, upload.array('image'), validateCampground, catchAsync(controller.updateCampground))
 
 app.delete('/campgrounds/:id', isLoggedIn, isCampAuthor, catchAsync(controller.deleteCampground))
 
