@@ -41,6 +41,9 @@ const sessionConfig = {
 app.use(session(sessionConfig))
 app.use(flash())
 
+const mongoSanitize = require('express-mongo-sanitize')
+app.use(mongoSanitize())
+
 
 const passport = require('passport')
 const passportLocal = require('passport-local')

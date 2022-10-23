@@ -2,10 +2,12 @@ mapboxgl.accessToken = mbxToken;
 const map = new mapboxgl.Map({
     container: 'map',
     // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
-    style: 'mapbox://styles/mapbox/dark-v10',
+    style: 'mapbox://styles/mapbox/light-v10',
     center: [-103.5917, 40.6699],
     zoom: 3
 });
+
+map.addControl(new mapboxgl.NavigationControl(), 'bottom-left');
 
 map.on('load', () => {
     // Add a new source from our GeoJSON data and
@@ -30,15 +32,15 @@ map.on('load', () => {
             // Use step expressions (https://docs.mapbox.com/mapbox-gl-js/style-spec/#expressions-step)
             // with three steps to implement three types of circles:
             //   * Blue, 20px circles when point count is less than 10
-            //   * Yellow, 30px circles when point count is between 10 and 50
-            //   * Pink, 40px circles when point count is greater than or equal to 50
+            //   * Yellow, 30px circles when point count is between 10 and 35
+            //   * Pink, 40px circles when point count is greater than or equal to 35
             'circle-color': [
                 'step',
                 ['get', 'point_count'],
                 '#51bbd6',
                 10,
                 '#f1f075',
-                50,
+                35,
                 '#f28cb1'
             ],
             'circle-radius': [
@@ -47,7 +49,7 @@ map.on('load', () => {
                 20,
                 10,
                 30,
-                50,
+                35,
                 40
             ]
         }

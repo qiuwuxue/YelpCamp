@@ -30,9 +30,10 @@ module.exports.validateReview = (req, res, next)=>{
         next()    
 }
 
+
 module.exports.isCampAuthor = async(req, res, next) =>{
     const campground = await Campground.findById(req.params.id)
-    if (!campground.author.equals(req.user._id)){
+    if (!req.user._id.equals(process.env.ADMIN_ID) && !campground.author.equals(req.user._id)){
         req.flash('error', 'You do not have permission to do that')
         res.redirect(`/campgrounds/${req.params.id}`)
     }else
@@ -43,7 +44,7 @@ module.exports.isCampAuthor = async(req, res, next) =>{
 module.exports.isReviewAuthor = async(req, res, next) =>{
     const {id, reviewID} = req.params
     const review = await Review.findById(reviewID)
-    if (!review.author.equals(req.user._id)){
+    if (!req.user._id.equals(process.env.ADMIN_ID) && !review.author.equals(req.user._id)){
         req.flash('error', 'You do not have permission to do that')
         res.redirect(`/campgrounds/${req.params.id}`)
     }else
